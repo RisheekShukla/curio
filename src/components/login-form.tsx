@@ -22,7 +22,11 @@ export function LoginForm({ initialError }: { initialError: string | null }) {
       options: { emailRedirectTo: callback.toString() },
     });
     if (error) {
-      setError(error.status === 429 ? "Too many attempts. Please wait a minute and try again." : "We couldn't send a sign-in link. Check the address and try again.");
+      setError(
+        error.status === 429 || error.code === "over_email_send_rate_limit"
+          ? "Too many sign-in emails were sent recently. Please try again later (this can take up to an hour)."
+          : "We couldn't send a sign-in link. Check the address and try again.",
+      );
       setState("idle");
     } else {
       setState("sent");
