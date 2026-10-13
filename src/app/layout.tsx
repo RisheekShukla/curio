@@ -4,11 +4,12 @@ import { AppShell } from "@/components/app-shell";
 import { CurioProvider } from "@/components/providers/curio-provider";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { getAIMode, getStorageMode } from "@/lib/server/config";
+import { resolveSiteUrl } from "@/lib/site-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  metadataBase: resolveSiteUrl(),
   title: { default: "Curio — discover something worth wondering about", template: "%s · Curio" },
   description: "A personalised, image-led feed of discoveries across science, history, nature and culture, with an AI companion to explore each one.",
   applicationName: "Curio",
