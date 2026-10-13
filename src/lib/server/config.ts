@@ -26,6 +26,7 @@ export function getAIProviderConfig() {
     apiKey,
     baseUrl: process.env.AI_BASE_URL || "https://api.openai.com/v1",
     model: process.env.AI_MODEL || "gpt-4o-mini",
+    fallbackModel: process.env.AI_FALLBACK_MODEL || undefined,
     reasoningEffort: effort && REASONING_EFFORTS.includes(effort) ? effort : undefined,
     maxOutputTokens: Number.isInteger(maxTokens) && maxTokens > 0 && maxTokens <= 32_000 ? maxTokens : undefined,
   };

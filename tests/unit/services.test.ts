@@ -179,6 +179,59 @@ describe("AI failure handling", () => {
     expect(bodies[1]).toMatchObject({ reasoning_effort: "low", max_tokens: 4000, model: "gemini" });
   });
 
+  describe("fallback model", () => {
+    const input = {
+      discovery: { slug: "s", title: "T", summary: "S", category: "space", tags: [] },
+      history: [],
+      message: "Hi",
+      explanationStyle: "balanced" as const,
+    };
+    const recordingFetch = (statusFor: (model: string) => number) => {
+      const models: string[] = [];
+      const fetchImpl = (async (_url: string, init: RequestInit) => {
+        const model = JSON.parse(String(init.body)).model as string;
+        models.push(model);
+        const status = statusFor(model);
+        return status === 200
+          ? Response.json({ choices: [{ message: { content: `from ${model}` } }] })
+          : new Response("{}", { status });
+      }) as unknown as typeof fetch;
+      return { models, fetchImpl };
+    };
+
+    it("retries once with the fallback model when the primary is overloaded", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { models, fetchImpl } = recordingFetch((m) => (m === "primary" ? 503 : 200));
+      const ai = new OpenAICompatibleAI({ apiKey: "k", baseUrl: "https://x", model: "primary", fallbackModel: "backup", fetchImpl });
+      const answer = await ai.answer(input);
+      expect(models).toEqual(["primary", "backup"]);
+      expect(answer.content).toBe("from backup");
+      vi.restoreAllMocks();
+    });
+
+    it("does not fall back on non-retryable errors such as a bad key", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { models, fetchImpl } = recordingFetch(() => 401);
+      const ai = new OpenAICompatibleAI({ apiKey: "k", baseUrl: "https://x", model: "primary", fallbackModel: "backup", fetchImpl });
+      await expect(ai.answer(input)).rejects.toBeInstanceOf(AIUnavailableError);
+      expect(models).toEqual(["primary"]);
+      vi.restoreAllMocks();
+    });
+
+    it("returns a friendly busy message when both models are rate limited", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { models, fetchImpl } = recordingFetch(() => 429);
+      const ai = new OpenAICompatibleAI({ apiKey: "k", baseUrl: "https://x", model: "primary", fallbackModel: "backup", fetchImpl });
+      const error = await ai.answer(input).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(AIUnavailableError);
+      expect((error as Error).message).toMatch(/busy/);
+      expect(models).toEqual(["primary", "backup"]);
+      vi.restoreAllMocks();
+    });
+  });
+
   it("parses answers and follow-up suggestions from the model", async () => {
     const fetchImpl = (async () =>
       Response.json({
