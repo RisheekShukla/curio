@@ -13,12 +13,19 @@ const ids = (json.data ?? []).map((m) => m.id.replace(/^models\//, ""));
 console.log(ids.filter((id) => /flash|lite|pro/i.test(id) && !/tts|image|audio|live|embedding/i.test(id)).join("\n"));
 
 for (const model of process.argv.slice(2)) {
+  const started = Date.now();
   const r = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ model, messages: [{ role: "user", content: "Reply with: ready" }], max_tokens: 400 }),
-    signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: "In about 150 words, explain why Roman concrete is so durable." }],
+      max_tokens: 4000,
+      ...(process.env.AI_REASONING_EFFORT ? { reasoning_effort: process.env.AI_REASONING_EFFORT } : {}),
+    }),
+    signal: AbortSignal.timeout(40_000),
   }).catch((e) => ({ ok: false, status: e.name }));
   const body = r.ok ? await r.json() : null;
-  console.log(`${model}: ${r.ok ? `OK "${(body.choices?.[0]?.message?.content ?? "").trim().slice(0, 30)}"` : `HTTP ${r.status}`}`);
+  const words = (body?.choices?.[0]?.message?.content ?? "").split(/\s+/).filter(Boolean).length;
+  console.log(`${model}: ${r.ok ? `OK ${words} words` : `HTTP ${r.status}`} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 }

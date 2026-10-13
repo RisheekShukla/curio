@@ -12,8 +12,10 @@ export async function getCloudContext() {
     throw new AppError(404, "Cloud storage is not configured; Curio is running in demo mode.");
   }
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) throw new AppError(401, "Please sign in to continue.");
-  const repo = new SupabaseRepository(supabase, data.user.id);
-  return { userId: data.user.id, service: new CurioService({ repo, ai: getAIService("cloud") }) };
+  // getClaims verifies the session JWT's signature (via the project's JWKS), so the user ID is trustworthy.
+  const { data, error } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
+  if (error || typeof userId !== "string" || !userId) throw new AppError(401, "Please sign in to continue.");
+  const repo = new SupabaseRepository(supabase, userId);
+  return { userId, service: new CurioService({ repo, ai: getAIService("cloud") }) };
 }

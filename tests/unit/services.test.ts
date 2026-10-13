@@ -210,6 +210,22 @@ describe("AI failure handling", () => {
       vi.restoreAllMocks();
     });
 
+    it("falls back when the primary model times out", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const models: string[] = [];
+      const fetchImpl = (async (_url: string, init: RequestInit) => {
+        const model = JSON.parse(String(init.body)).model as string;
+        models.push(model);
+        if (model === "primary") throw Object.assign(new Error("timed out"), { name: "TimeoutError" });
+        return Response.json({ choices: [{ message: { content: `from ${model}` } }] });
+      }) as unknown as typeof fetch;
+      const ai = new OpenAICompatibleAI({ apiKey: "k", baseUrl: "https://x", model: "primary", fallbackModel: "backup", fetchImpl });
+      expect((await ai.answer(input)).content).toBe("from backup");
+      expect(models).toEqual(["primary", "backup"]);
+      vi.restoreAllMocks();
+    });
+
     it("does not fall back on non-retryable errors such as a bad key", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const { models, fetchImpl } = recordingFetch(() => 401);

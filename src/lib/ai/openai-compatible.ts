@@ -18,7 +18,7 @@ export interface OpenAICompatibleConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
-  /** Tried once when the primary model is overloaded (503) or rate limited (429). */
+  /** Tried once when the primary model is overloaded (503), rate limited (429) or times out. */
   fallbackModel?: string;
   /** Sent only when set; thinking models (e.g. Gemini 3) need it, others may reject it. */
   reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
@@ -69,11 +69,12 @@ export class OpenAICompatibleAI implements AIResponder {
           max_tokens: this.config.maxOutputTokens ?? maxTokens,
           ...(this.config.reasoningEffort ? { reasoning_effort: this.config.reasoningEffort } : {}),
         }),
-        signal: AbortSignal.timeout(this.config.timeoutMs ?? 30_000),
+        signal: AbortSignal.timeout(this.config.timeoutMs ?? 25_000),
       });
     } catch (err) {
-      const reason = err instanceof Error && err.name === "TimeoutError" ? "timeout" : "network";
-      console.error(`[ai] provider request failed (${reason})`);
+      const timedOut = err instanceof Error && err.name === "TimeoutError";
+      console.error(`[ai] provider request failed (${timedOut ? "timeout" : "network"})`);
+      if (timedOut) throw new RetryableProviderError(504);
       throw new AIUnavailableError();
     }
 

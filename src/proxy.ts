@@ -50,11 +50,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getUser();
+  // getClaims verifies the JWT signature locally (cached JWKS) instead of calling the Auth server every request.
+  const { data } = await supabase.auth.getClaims();
+  const signedIn = !!data?.claims?.sub;
   const path = request.nextUrl.pathname;
 
   if (path === "/") {
-    if (!data.user) return response;
+    if (!signedIn) return response;
     const discover = request.nextUrl.clone();
     discover.pathname = "/discover";
     return NextResponse.redirect(discover);
@@ -63,7 +65,7 @@ export async function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p));
 
   // API routes answer 401 themselves; only page navigations are redirected.
-  if (!data.user && !isPublic && !path.startsWith("/api/")) {
+  if (!signedIn && !isPublic && !path.startsWith("/api/")) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     login.search = `?next=${encodeURIComponent(path)}`;

@@ -29,8 +29,9 @@ export const viewport: Viewport = {
 async function currentUserEmail(): Promise<string | null> {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase.auth.getUser();
-    return data.user?.email ?? null;
+    const { data } = await supabase.auth.getClaims();
+    const email = data?.claims?.email;
+    return typeof email === "string" ? email : null;
   } catch {
     return null;
   }
